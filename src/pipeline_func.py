@@ -41,28 +41,18 @@ def stratified_kfold_cv_pipe(X, y, preprocessor: TransformerMixin, model, param_
 
     return grid_search.best_estimator_, grid_search.best_params_, grid_search.best_score_
 
-def test_pipe(X_test, y_test, preprocessor: TransformerMixin, model):
+def test_pipe(X_test, y_test, pipeline: Pipeline):
     """
-    Given unpreprocessed test X and test y, fits a pipeline and produces
-    the test score given the model.
+    Given unpreprocessed test X and test y, predicts the target variable
+    and produces a test score using the best found estimator via a pipeline.
 
     Scores using f2, to emphasize recall.
 
     Arguments:
         - X_test: test design matrix
         - y_test: test target variable
-        - preprocessor: a transformer, for data preprocessing in the pipeline
-        - model: an estimator, for the model in the pipeline
+        - pipeline: the best pipeline containing the best estimator
     """
-    pipeline = Pipeline(
-        steps = [
-            ('preprocessor', preprocessor),
-            ('model', model)
-        ]
-    )
-
-    pipeline.fit(X_test, y_test)
-
     y_pred = pipeline.predict(X_test)
 
     f2_score = fbeta_score(y_test, y_pred, beta = 2)
