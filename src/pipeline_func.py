@@ -168,7 +168,7 @@ def xgb_classifier_cv(X_other, y_other, preprocessor: TransformerMixin, param_gr
     best_score = float('-inf')
 
     for params in ParameterGrid(param_grid):
-        print(f'Processing Parameter Combination {params}...')
+        # print(f'Processing Parameter Combination {params}...')
         model = XGBClassifier(**params, early_stopping_rounds = 10, n_jobs = -1)
 
         skf = StratifiedKFold(n_splits = n_splits, shuffle = True, random_state = random_state)
@@ -184,7 +184,7 @@ def xgb_classifier_cv(X_other, y_other, preprocessor: TransformerMixin, param_gr
 
             model.fit(X_train_preprocessed, y_train, eval_set = [(X_val_preprocessed, y_val)], verbose = False)
 
-            y_pred = model.predict(X_val)
+            y_pred = model.predict(X_val_preprocessed)
 
             score = fbeta_score(y_val, y_pred, beta = 2)
 
