@@ -26,26 +26,37 @@ def get_test_scores(X, y, preprocessor, model, param_grid, n_splits = 5, n_seeds
     Returns (in order):
         - best_test_scores: list of test scores from the best model from each seed
         - best_estimators: list of best estimators from each seed
-        - best_test_score: the best test score from all seeds
-        - best_estimator: the best estimator from all seeds
+        - unpreprocessed_test_sets: list of unpreprocessed test sets from each seed
+        - preprocessed_test_sets: list of preprocessed test sets from each seed
+        - predicted_labels: list of predicted labels from each seed
+        - baseline_scores: list of baseline test scores from each seed
     """
     best_test_scores: list[float] = list()
     best_estimators: list[Pipeline] = list()
+    unpreprocessed_test_sets = list()
+    preprocessed_test_sets = list()
+    predicted_labels = list()
+    baseline_scores = list()
 
     for random_state in range(n_seeds):
         print(f'Processing Seed {random_state + 1} of {n_seeds}...')
-        X_other, X_test, y_other, y_test = train_test_split(X, y, test_size = 0.2, random_state = random_state)
+        X_other, X_test, y_other, y_test = train_test_split(X, y, test_size = 0.2, random_state = random_state, stratify = y)
         best_estimator, _, _ = stratified_kfold_cv_pipe(X_other, y_other, preprocessor, model, param_grid, n_splits, random_state)
 
         best_estimator.fit(X_other, y_other)
-        best_test_score = test_pipe(X_test, y_test, best_estimator)
+        best_test_score, X_test_preprocessed, y_pred = test_pipe(X_test, y_test, best_estimator)
+
+        unpreprocessed_test_sets.append((X_test, y_test))
+        preprocessed_test_sets.append((X_test_preprocessed, y_test))
+        predicted_labels.append(y_pred)
 
         best_test_scores.append(best_test_score)
         best_estimators.append(best_estimator)
 
-    best_idx = np.argmax(best_test_scores)
+        baseline_score = np.count_nonzero(y_test == 0) / len(y_test)
+        baseline_scores.append(baseline_score)
 
-    return best_test_scores, best_estimators, best_test_scores[best_idx], best_estimators[best_idx]
+    return best_test_scores, best_estimators, unpreprocessed_test_sets, preprocessed_test_sets, predicted_labels, baseline_scores
 
 def stratified_kfold_cv_pipe(X_other, y_other, preprocessor: TransformerMixin, model, param_grid, n_splits: int = 5, random_state: int = 42):
     """
@@ -98,12 +109,17 @@ def test_pipe(X_test, y_test, pipeline: Pipeline):
 
     Returns:
         - f2_score: the f2 score of the pipeline on the test data
+        - X_test_preprocessed: the preprocessed test design matrix
+        - y_pred: the predicted labels from the pipeline
     """
+    transformed_data = pipeline.named_steps['preprocessor'].transform(X_test)
+    X_test_preprocessed = pd.DataFrame(transformed_data, index = X_test.index, columns = pipeline.named_steps['preprocessor'].get_feature_names_out())
+
     y_pred = pipeline.predict(X_test)
 
     f2_score = fbeta_score(y_test, y_pred, beta = 2)
 
-    return f2_score
+    return f2_score, X_test_preprocessed, y_pred
 
 def get_xgb_classifier_test_scores(X, y, preprocessor: TransformerMixin, param_grid: dict, n_splits: int = 5, n_seeds: int = 5):
     """
@@ -124,25 +140,36 @@ def get_xgb_classifier_test_scores(X, y, preprocessor: TransformerMixin, param_g
     Returns (in order):
         - best_test_scores: list of test scores from the best model from each seed
         - best_estimators: list of best estimators from each seed
-        - best_test_score: the best test score from all seeds
-        - best_estimator: the best estimator from all seeds
+        - unpreprocessed_test_sets: list of unpreprocessed test sets from each seed
+        - preprocessed_test_sets: list of preprocessed test sets from each seed
+        - predicted_labels: list of predicted labels from each seed
+        - baseline_scores: list of baseline test scores from each seed
     """
     best_test_scores: list[float] = list()
     best_estimators: list[Pipeline] = list()
+    unpreprocessed_test_sets = list()
+    preprocessed_test_sets = list()
+    predicted_labels = list()
+    baseline_scores = list()
 
     for random_state in range(n_seeds):
         print(f'Processing Seed {random_state + 1} of {n_seeds}...')
-        X_other, X_test, y_other, y_test = train_test_split(X, y, test_size = 0.2, random_state = random_state)
+        X_other, X_test, y_other, y_test = train_test_split(X, y, test_size = 0.2, random_state = random_state, stratify = y)
         best_estimator, fitted_preprocessor, _, _ = xgb_classifier_cv(X_other, y_other, preprocessor, param_grid, n_splits, random_state)
 
-        best_test_score = xgbc_test_model(X_test, y_test, best_estimator, fitted_preprocessor)
+        best_test_score, X_test_preprocessed, y_pred = xgbc_test_model(X_test, y_test, best_estimator, fitted_preprocessor)
+
+        unpreprocessed_test_sets.append((X_test, y_test))
+        preprocessed_test_sets.append((X_test_preprocessed, y_test))
+        predicted_labels.append(y_pred)
 
         best_test_scores.append(best_test_score)
         best_estimators.append(best_estimator)
 
-    best_idx = np.argmax(best_test_scores)
+        baseline_score = np.count_nonzero(y_test == 0) / len(y_test)
+        baseline_scores.append(baseline_score)
 
-    return best_test_scores, best_estimators, best_test_scores[best_idx], best_estimators[best_idx]
+    return best_test_scores, best_estimators, unpreprocessed_test_sets, preprocessed_test_sets, predicted_labels, baseline_scores
 
 def xgb_classifier_cv(X_other, y_other, preprocessor: TransformerMixin, param_grid: dict, n_splits: int = 5, random_state: int = 42):
     """
@@ -179,8 +206,8 @@ def xgb_classifier_cv(X_other, y_other, preprocessor: TransformerMixin, param_gr
             X_train, y_train = X_other.iloc[train_idx], y_other.iloc[train_idx]
             X_val, y_val = X_other.iloc[val_idx], y_other.iloc[val_idx]
 
-            X_train_preprocessed = pd.DataFrame(preprocessor.fit_transform(X_train), index = X_train.index, columns = X_train.columns)
-            X_val_preprocessed = pd.DataFrame(preprocessor.transform(X_val), index = X_val.index, columns = X_val.columns)
+            X_train_preprocessed = pd.DataFrame(preprocessor.fit_transform(X_train), index = X_train.index, columns = preprocessor.get_feature_names_out())
+            X_val_preprocessed = pd.DataFrame(preprocessor.transform(X_val), index = X_val.index, columns = preprocessor.get_feature_names_out())
 
             model.fit(X_train_preprocessed, y_train, eval_set = [(X_val_preprocessed, y_val)], verbose = False)
 
@@ -217,11 +244,13 @@ def xgbc_test_model(X_test, y_test, model, fitted_preprocessor):
 
     Returns:
         - f2_score: the f2 score of the pipeline on the test data
+        - X_test_preprocessed: the preprocessed test design matrix
+        - y_pred: the predicted labels from the model
     """
-    X_test_preprocessed = pd.DataFrame(fitted_preprocessor.transform(X_test), index = X_test.index, columns = X_test.columns)
+    X_test_preprocessed = pd.DataFrame(fitted_preprocessor.transform(X_test), index = X_test.index, columns = fitted_preprocessor.get_feature_names_out())
 
     y_pred = model.predict(X_test_preprocessed)
 
     f2_score = fbeta_score(y_test, y_pred, beta = 2)
 
-    return f2_score
+    return f2_score, X_test_preprocessed, y_pred
