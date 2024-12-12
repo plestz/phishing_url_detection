@@ -170,8 +170,9 @@ def get_xgb_classifier_test_scores(X, y, preprocessor: TransformerMixin, param_g
         best_test_scores.append(best_test_score)
         best_estimators.append(best_estimator)
 
-        baseline_score = np.count_nonzero(y_test == 0) / len(y_test)
-        baseline_scores.append(baseline_score)
+        # Phishing (1) is the minority class. F2 is defined only when predicting minority class (majority forces precision to be undefined).
+        f2_baseline = fbeta_score(y_test, [1] * len(y_pred), beta = 2)
+        baseline_scores.append(f2_baseline)
 
     return best_test_scores, best_estimators, unpreprocessed_test_sets, preprocessed_test_sets, predicted_labels, baseline_scores
 
