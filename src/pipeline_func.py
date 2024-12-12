@@ -43,7 +43,6 @@ def get_test_scores(X, y, preprocessor, model, param_grid, n_splits = 5, n_seeds
         X_other, X_test, y_other, y_test = train_test_split(X, y, test_size = 0.2, random_state = random_state, stratify = y)
         best_estimator, _, _ = stratified_kfold_cv_pipe(X_other, y_other, preprocessor, model, param_grid, n_splits, random_state)
 
-        best_estimator.fit(X_other, y_other)
         best_test_score, X_test_preprocessed, y_pred = test_pipe(X_test, y_test, best_estimator)
 
         unpreprocessed_test_sets.append((X_test, y_test))
@@ -53,8 +52,9 @@ def get_test_scores(X, y, preprocessor, model, param_grid, n_splits = 5, n_seeds
         best_test_scores.append(best_test_score)
         best_estimators.append(best_estimator)
 
-        baseline_score = np.count_nonzero(y_test == 0) / len(y_test)
-        baseline_scores.append(baseline_score)
+        # Phishing (1) is the minority class. F2 is defined only when predicting minority class (majority forces precision to be undefined).
+        f2_baseline = fbeta_score(y_test, [1] * len(y_pred), beta = 2)
+        baseline_scores.append(f2_baseline)
 
     return best_test_scores, best_estimators, unpreprocessed_test_sets, preprocessed_test_sets, predicted_labels, baseline_scores
 
@@ -156,6 +156,10 @@ def get_xgb_classifier_test_scores(X, y, preprocessor: TransformerMixin, param_g
         print(f'Processing Seed {random_state + 1} of {n_seeds}...')
         X_other, X_test, y_other, y_test = train_test_split(X, y, test_size = 0.2, random_state = random_state, stratify = y)
         best_estimator, fitted_preprocessor, _, _ = xgb_classifier_cv(X_other, y_other, preprocessor, param_grid, n_splits, random_state)
+
+        # NOTE: XGBClassifier with early stopping requires a validation set. We cannot refit the best_estimator on X_other, because
+        # then we would not have a validation set to use for early stopping (X_test must be used to test). Thus, the found best_estimator
+        # above must be retained, despite being trained on K-1 folds of X_other.
 
         best_test_score, X_test_preprocessed, y_pred = xgbc_test_model(X_test, y_test, best_estimator, fitted_preprocessor)
 
