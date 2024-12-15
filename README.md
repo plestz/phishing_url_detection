@@ -7,7 +7,7 @@ machine learning models to detect phishing URL scams on the World Wide Web.
 
 ### /data
 
-The PhiUSIIL.csv dataset can be found in this folder.
+The PhiUSIIL .csv dataset can be found in this folder.
 
 The original dataset can be found [here](https://archive.ics.uci.edu/dataset/967/phiusiil+phishing+url+dataset).
 
